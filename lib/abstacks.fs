@@ -2,9 +2,9 @@
 CREATE astack STACK-SIZE CELLS ALLOT
 CREATE bstack STACK-SIZE CELLS ALLOT
 VARIABLE sap VARIABLE sbp
-astack STACK-SIZE + CONSTANT sa0
-bstack STACK-SIZE + CONSTANT sb0
-sa0 sap ! sb0 sbp !
+astack STACK-SIZE + CONSTANT sap0
+bstack STACK-SIZE + CONSTANT sbp0
+sap0 sap ! sbp0 sbp !
 
 : sap@ (   -- n ) sap @ ;
 : sbp@ (   -- n ) sbp @ ;
