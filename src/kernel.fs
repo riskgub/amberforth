@@ -23,7 +23,9 @@ CELL NEGATE CONSTANT -CELL
 : HEX     16 BASE ! ;
 : DECIMAL 10 BASE ! ;
 : OCTAL    8 BASE ! ;
+
 ( STACK OPERATORS )
+
 : SP@   ( -- SP ) SP @ ;
 : RP@   ( -- RP ) RP @ ;
 : >S    ( x1 -- ) SP @ ! -CELL SP +! ;
@@ -44,7 +46,9 @@ CELL NEGATE CONSTANT -CELL
 : ?DUP  ( x1 -- x1 x1 | 0 ) DUP IF DUP THEN ;
 : DEPTH ( -- n ) SP@ SP0 @ SWAP - CELL / ;
 : PICK  ( +n -- w ) 1 + CELLS SP@ + @ ;
+
 ( LOGIC & ARITHMETIC OPERATORS )
+
 : INVERT ( n -- !n ) -1 XOR ;
 : NOT POSTPONE INVERT ;
 : + ( n1 n2 -- n1+n2) UM+ DROP ;
@@ -59,7 +63,9 @@ CELL NEGATE CONSTANT -CELL
 : 2/  ( x1 -- x2 ) DUP - ;
 : RSHIFT ( x1 x2 -- x3 ) 0 DO DUP 2* LOOP NIP ;
 : LSHIFT ( x1 x2 -- x3 ) 0 DO DUP 2/ LOOP NIP ;
+
 ( COMPARSION OPERATORS )
+
 : =  ( x1 x2 -- f ) XOR IF 0 EXIT THEN -1 ;
 : U< ( u  u  -- f ) 2DUP XOR 0< IF SWAP DROP 0< EXIT THEN - 0< ;
 : <  ( n  n  -- f ) 2DUP XOR 0< IF      DROP 0< EXIT THEN - 0< ;
@@ -68,14 +74,18 @@ CELL NEGATE CONSTANT -CELL
 : MAX ( n n -- n ) 2DUP < IF SWAP THEN DROP ;
 : MIN ( n n -- n ) 2DUP SWAP < IF SWAP THEN DROP ;
 : WITHIN ( u ul uh -- f ) OVER - >R - R> U< ;
+
 ( MEMORY ALIGNMENT )
+
 : CELL- CELL - ;
 : CELL+ CELL + ;
 : CELLS CELL * ;
 : ALIGNED
   DUP 0 CELL UM/MOD DROP DUP
   IF CELL SWAP - THEN + ;
+
 ( MEMORY ACCESS )
+
 : +! ( x1 addr -- ) SWAP OVER @ + SWAP ! ;
 : 2! ( d a -- ) SWAP OVER ! CELL+ ! ;
 : 2@ ( a -- d ) DUP CELL+ @ SWAP @ ;
@@ -96,9 +106,13 @@ NEXT 0 ;
   ALIGNED DUP >R OVER
   DUP 0 CELL UM/MOD DROP
   - OVER + 0 SWAP ! 2DUP C! 1 + SWAP CMOVE R> ;
+
 ( MISC )
+
 : BL 32 ;
+
 ( NUMERIC OUTPUT )
+
 : DIGIT ( u -- c ) 9 OVER < 7 AND + 48 + ;
 : EXTRACT ( n base -- n c ) 0 SWAP UM/MOD SWAP DIGIT ;
 : <# ( -- ) PAD HLD ! ;
@@ -113,7 +127,9 @@ NEXT 0 ;
 : U. ( u -- ) <# #S #> SPACE TYPE ;
 : .  ( w -- ) BASE @ 10 XOR IF U. EXIT THEN str SPACE TYPE ;
 : ?  ( a -- ) @ . ;
+
 ( NUMERIC INPUT )  
+
 : DIGIT? ( c base -- u t )
   >R 48 - 9 OVER <
   IF 7 - DUP 10 < OR THEN DUP R> U< ;
@@ -144,7 +160,9 @@ THEN r> 2DROP R> BASE ! ;
   >R R@ R> COUNT + ALIGNED >R SWAP >R ;
 : $"| ( -- a ) do$ ;
 : ."| ( -- ) do$ COUNT TYPE ; COMPILE-ONLY
+
 ( PARSING )
+
 : _parse ( b u c -- b u delta ; <string> )
   tmp ! OVER >R DUP
   IF 1- tmp @ BL =
@@ -169,7 +187,9 @@ THEN OVER R> - ;
 : TOKEN ( -- a ; <string> )
   BL PARSE 31 MIN NP @ OVER - CELL- PACK$ ;
 : WORD ( c -- a ; <string> ) PARSE HERE PACK$ ;
+
 ( DICTIONARY SEARCH )
+
 : NAME> ( a -- xt ) CELL- CELL- @ ;
 : SAME?  ( a a u -- a a f \ -0+ )
   FOR AFT OVER R@ CELLS + @
@@ -191,3 +211,149 @@ NEXT 0 ;
   BEGIN R> CELL+ DUP >R @ ?DUP
   WHILE find ?DUP
   UNTIL R> DROP EXIT THEN R> DROP 0 ;
+
+( TERMINAL HANDLER )
+
+: ^H ( b b b -- b b b ) \ backspace
+  >R OVER R> SWAP OVER XOR
+  IF 8 'ECHO @EXECUTE
+     32 'ECHO @EXECUTE
+     8 'ECHO @EXECUTE THEN ;
+: TAP  ( bot eot cur c -- bot eot cur )
+  DUP 'ECHO @EXECUTE OVER C! 1 + ;
+: kTAP ( bot eot cur c - bot eot cur )
+  DUP 13 XOR
+  IF 8 XOR IF BL TAP ELSE ^H THEN EXIT
+  THEN DROP SWAP DROP DUP ;
+: accept ( b u -- b u )
+ OVER + OVER
+ BEGIN 2DUP XOR
+ WHILE KEY DUP BL - 95 U<
+       IF TAP ELSE 'TAP @EXECUTE THEN
+ REPEAT DROP OVER - ;
+: EXPECT ( b u -- ) 'EXPECT @EXECUTE SPAN ! DROP ;
+: QUERY ( -- ) TIB 80 'EXPECT @EXECUTE #TIB ! DROP ) >IN ! ;
+
+( ERROR HANDLING )
+
+: CATCH ( ca -- err#/0 )
+  SP@ >R
+  HANDLER @ >R
+  RP@ HANDLER !
+  EXECUTE
+  R> HANDLER !
+  R> DROP
+  0 ;
+: THROW ( err# -- err# )
+  HANDLER @ RP !
+  R> HANDLER !
+  R< SWAP R>
+  SP ! DROP R> ;
+CREATE NULL$ 0 , $," AmberForth!"
+
+: ABORT ( -- ) NULL$ THROW ;
+: abort" ( f -- ) FI do$ THROW THEN do$ DROP ;
+
+( TEXT INTERPRETER )
+
+: $INTERPRET ( a -- )
+  NAME? ?DUP IF @ 64 AND
+		ABORT" compile ONLY" EXECUTE EXIT
+	     THEN 'NUMBER @EXECUTE IF EXIT THEN THROW ;
+: [ ( -- ) doLIT $INTERPRET 'EVAL ! ; IMMEDIATE
+: .OK ( -- ) doLIT $INTERPRET EVAL @ = IF ."  ok" THEN CR ;
+: ?STACK ( -- ) DEPTH 0< ABORT " stack underflow" ;
+: EVAL ( -- )
+  BEGIN TOKEN DUP C@
+  WHILE 'EVAL @EXECUTE ?STACK
+  REPEAT DROP 'PROMPT @EXECUTE ;
+
+( SHELL )
+
+: PRESET ( -- ) SP0 @ SP! TIB #TIB CELL+ ! ;
+: xio ( a a a -- ) \ reset 'EXPECT 'TAP 'ECHO 'PROMPT
+  doLIT accept 'EXPECT 2! 'ECHO 2! ; COMPILE-ONLY
+: FILE ( -- ) doLIT PACE doLIT DROP doLIT kTAP xio ;
+: HAND ( -- ) doLIT .OK doLIT EMIT [ kTAP xio ;
+CREATE I/O ' ?RX , ' TX! ,
+: CONSOLE ( -- ) I/O 2@ '?KEY 2! HAND ;
+: QUIT ( -- )
+  RP0 @ RP!
+  BEGIN [COMPILE] [
+	BEGIN QUERY doLIT EVAL CATCH ?DUP
+	UNTIL 'PROMPT @ SWAP CONSOLE NULL$ OVER XOR
+	IF CR #TIB 2@ TYPE
+	   CR >IN @ 94 EMIT*
+	   CR COUNT TYPE ."  ? "
+	THEN doLIT .OK XOR
+	IF 27 EMIT THEN PRESET AGAIN ;
+
+( INTERPRETER )
+
+: [ ( -- )
+  [ ' $INTERPRET ] LITERAL
+  'EVAL ! ; IMMEDIATE
+: ] ( -- )
+  [ ' $COMPILE ] LITERAL
+  'EVAL ! ;
+
+( COMPILER )
+ 
+: ' ( -- xt ) TOKEN NAME? IF EXIT THEN THROW ;
+: ALLOT ( n -- ) CP +! ;
+: , ( w -- ) HERE DUP CELL+ CP ! ! ;
+: [COMPILE] ( -- ; <string> ) ' , ; IMMEDIATE
+: COMPILE ( -- ) R> DUP @ , CELL+ >R ;
+: LITERAL ( w -- ) COMPILE doLIT , ; IMMEDIATE
+: $," ( -- ) 34 WORD COUNT ALIGNED CP ! ;
+: RECURSE ( -- ) LAST @ NAME> , ; IMMEDIATE
+
+: <MARK ( -- a ) HERE ;
+: <RESOLVE ( a -- ) , ;
+: >MARK ( -- A ) HERE 0 , ;
+: >RESOLVE ( A -- ) <MARK SWAP ! ;
+: FOR ( -- a ) COMPILE >R <MARK ; IMMEDIATE
+: BEGIN ( -- a ) <MARK ; IMMEDIATE
+: NEXT ( a -- ) COMPILE next <RESOLVE ; IMMEDIATE
+: UNTIL ( a -- ) COMPILE ?branch <RESOLVE ; IMMEDIATE
+: AGAIN ( a -- ) COMPILE  branch <RESOLVE ; IMMEDIATE
+: IF    ( -- A ) COMPILE ?BRANCH >MARK ; IMMEDIATE
+: AHEAD ( -- A ) COMPILE branch >MARK ; IMMEDIATE
+: REPEAT ( A a -- ) [COMPILE] AGAIN >RESOLVE ; IMMEDIATE
+: THEN ( A -- ) >RESOLVE ; IMMEDIATE
+: AFT  ( a -- a A ) DROP [COMPILE] AHEAD [COMPILE] BEGIN SWAP ;
+IMMEDIATE
+: ELSE ( A -- A ) [COMPILE] AHEAD SWAP [COMPILE] THEN ; IMMEDIATE
+: WHEN ( a A -- a A a ) [COMPILE] IF OVER ; IMMEDIATE
+: WHILE ( a -- A a ) [COMPILE] IF SWAP ; IMMEDIATE
+
+: ABORT" ( -- ; <string> ) COMPILE abort" $," ; IMMEDIATE
+
+: $" ( -- ; <string> ) COMPILE $"| $," ; IMMEDIATE
+: ." ( -- ; <string> ) COMPILE ."| $," ; IMMEDIATE
+ 
+: ?UNIQUE ( a -- a )
+  DUP NAME? IF ."  reDef " OVER COUNT TYPE THEN DROP ;
+: $,n ( a -- ) DUP C@
+ IF ?UNIQUE
+ DUP LAST !
+ HERE ALIGNED SWAP
+ CELL -
+ CURRENT @ @
+ OVER !
+ CELL- DUP NP ! ! EXIT
+ THEN $" name" THROW ;
+.( FORTH Compiler )
+: $COMPILE ( a -- )
+  NAME? ?DUP
+  IF @ 64 AND
+     IF EXECUTE ELSE , THEN EXIT
+  THEN 'NUMBER @EXECUTE
+  IF [COMPILE] LITERAL EXIT
+  THEN THROW ;
+: OVERT ( -- ) LAST @ CURRENT @ ! ;
+: ; ( -- ) COMPILE EXIT [COMPILE] [ OVERT ; IMMEDIATE
+\ : call, ( xt -- ) 59536 , HERE CELL+ - , ;
+: : ( -- ; <string> ) TOKEN $,n doLIT doLIST call, ] ;
+: IMMEDIATE 64 LAST @ @ OR LAST @ ! ;
+  
